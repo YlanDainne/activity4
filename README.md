@@ -39,16 +39,6 @@ A modular in-process e-commerce system built with Spring Boot, Supabase PostgreS
    ON CONFLICT (product_id) DO NOTHING;
    ```
 
-3. **Backend Connection Configuration**
-   - Configured `backend/src/main/resources/application.properties` with the Supabase connection parameters and PostgreSQL dialect:
-   ```properties
-   spring.datasource.url=${SPRING_DATASOURCE_URL:${SUPABASE_DB_URL:jdbc:postgresql://aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres?sslmode=require}}
-   spring.datasource.username=${SPRING_DATASOURCE_USERNAME:${SUPABASE_DB_USERNAME:postgres.dvtrrmskgyqiolbmqhxi}}
-   spring.datasource.password=${SPRING_DATASOURCE_PASSWORD:${SUPABASE_DB_PASSWORD:Cute.kaayoko1}}
-   spring.datasource.driver-class-name=org.postgresql.Driver
-   spring.jpa.hibernate.ddl-auto=validate
-   ```
-
 ---
 
 ## 2. Network Tab Verification Evidence
