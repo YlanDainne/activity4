@@ -3,45 +3,45 @@
   --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: 'JetBrains Mono', monospace;
 
-  /* Spatial Computing / visionOS Glass Palette */
-  --spatial-void: #07090e;
-  --spatial-space: #0c0f17;
+  /* Light Spatial Computing / visionOS Crystal Glass Palette */
+  --spatial-void: #f8fafc;
+  --spatial-space: #f1f5f9;
   
-  /* Frosted Glass Layers */
-  --glass-base: rgba(18, 22, 36, 0.55);
-  --glass-elevated: rgba(26, 32, 54, 0.65);
-  --glass-card: rgba(22, 28, 48, 0.5);
-  --glass-card-hover: rgba(32, 40, 68, 0.65);
-  --glass-input: rgba(12, 15, 26, 0.6);
-  --glass-pill: rgba(255, 255, 255, 0.08);
+  /* Luminous Frosted Glass Layers */
+  --glass-base: rgba(255, 255, 255, 0.72);
+  --glass-elevated: rgba(255, 255, 255, 0.88);
+  --glass-card: rgba(255, 255, 255, 0.65);
+  --glass-card-hover: rgba(255, 255, 255, 0.9);
+  --glass-input: rgba(241, 245, 249, 0.75);
+  --glass-pill: rgba(0, 0, 0, 0.05);
 
   /* Refractive Bevels & Borders */
-  --glass-border: rgba(255, 255, 255, 0.14);
-  --glass-border-subtle: rgba(255, 255, 255, 0.07);
-  --glass-border-active: rgba(255, 255, 255, 0.35);
-  --glass-border-focus: rgba(94, 234, 212, 0.6);
+  --glass-border: rgba(255, 255, 255, 0.9);
+  --glass-border-subtle: rgba(15, 23, 42, 0.08);
+  --glass-border-active: rgba(2, 132, 199, 0.5);
+  --glass-border-focus: rgba(2, 132, 199, 0.7);
 
-  /* Spatial Specular & Shadows */
-  --spatial-bevel: inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.32), inset 0 -1px 1px 0 rgba(0, 0, 0, 0.4);
-  --spatial-shadow-deep: 0 30px 80px -15px rgba(0, 0, 0, 0.75), 0 0 0 1px var(--glass-border);
-  --spatial-shadow-elevated: 0 40px 100px -20px rgba(0, 0, 0, 0.85), 0 0 0 1px var(--glass-border-active);
-  --spatial-shadow-card: 0 20px 50px -10px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--glass-border);
+  /* Spatial Specular & Shadows (Soft Ambient Light Shadows) */
+  --spatial-bevel: inset 0 1px 2px 0 rgba(255, 255, 255, 1), inset 0 -1px 1px 0 rgba(0, 0, 0, 0.04);
+  --spatial-shadow-deep: 0 25px 60px -15px rgba(100, 116, 139, 0.18), 0 0 0 1px rgba(255, 255, 255, 0.75);
+  --spatial-shadow-elevated: 0 35px 75px -15px rgba(100, 116, 139, 0.25), 0 0 0 1px rgba(2, 132, 199, 0.35);
+  --spatial-shadow-card: 0 16px 36px -10px rgba(100, 116, 139, 0.12), 0 0 0 1px rgba(255, 255, 255, 0.85);
 
   /* Volumetric Radiant Accents */
-  --accent-cyan: #38bdf8;
-  --accent-cyan-glow: rgba(56, 189, 248, 0.35);
-  --accent-mint: #2dd4bf;
-  --accent-mint-glow: rgba(45, 212, 191, 0.35);
-  --accent-violet: #a855f7;
-  --accent-violet-glow: rgba(168, 85, 247, 0.35);
-  --accent-amber: #fbbf24;
-  --accent-rose: #f43f5e;
+  --accent-cyan: #0284c7;
+  --accent-cyan-glow: rgba(2, 132, 199, 0.25);
+  --accent-mint: #0d9488;
+  --accent-mint-glow: rgba(13, 148, 136, 0.25);
+  --accent-violet: #7c3aed;
+  --accent-violet-glow: rgba(124, 58, 237, 0.25);
+  --accent-amber: #b45309;
+  --accent-rose: #e11d48;
 
-  /* Typography Colors */
-  --text-primary: #f8fafc;
-  --text-secondary: #cbd5e1;
-  --text-muted: #94a3b8;
-  --text-dim: #64748b;
+  /* Typography Colors (High Contrast on Light Glass) */
+  --text-primary: #0f172a;
+  --text-secondary: #334155;
+  --text-muted: #64748b;
+  --text-dim: #94a3b8;
 
   /* Curvatures */
   --radius-sm: 10px;
@@ -62,7 +62,7 @@
 
 html, body {
   min-height: 100vh;
-  background-color: var(--spatial-void);
+  background-color: var(--spatial-space);
   color: var(--text-primary);
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
@@ -72,18 +72,19 @@ html, body {
   letter-spacing: -0.01em;
 }
 
-/* Cosmic / Volumetric Spatial Background Environment */
+/* Radiant Volumetric Light Background */
 body {
+  background-color: #f1f5f9;
   background-image:
-    radial-gradient(ellipse 70% 60% at 20% 10%, rgba(56, 189, 248, 0.15) 0%, transparent 60%),
-    radial-gradient(ellipse 60% 50% at 85% 25%, rgba(168, 85, 247, 0.16) 0%, transparent 60%),
-    radial-gradient(ellipse 80% 60% at 50% 90%, rgba(45, 212, 191, 0.12) 0%, transparent 70%),
-    radial-gradient(circle at 50% 50%, rgba(15, 23, 42, 0.8) 0%, #07090e 100%);
+    radial-gradient(ellipse 70% 60% at 15% 12%, rgba(56, 189, 248, 0.24) 0%, transparent 60%),
+    radial-gradient(ellipse 65% 55% at 85% 20%, rgba(168, 85, 247, 0.18) 0%, transparent 60%),
+    radial-gradient(ellipse 80% 60% at 50% 90%, rgba(45, 212, 191, 0.22) 0%, transparent 70%),
+    linear-gradient(180deg, #f8fafc 0%, #eef2f6 100%);
   background-attachment: fixed;
   background-size: cover;
 }
 
-/* Glass Scrollbar */
+/* Glass Scrollbar for Light Theme */
 ::-webkit-scrollbar {
   width: 8px;
 }
@@ -91,17 +92,17 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(15, 23, 42, 0.15);
   border-radius: var(--radius-pill);
   backdrop-filter: blur(10px);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.28);
+  background: rgba(15, 23, 42, 0.28);
 }
 
 ::selection {
-  background: rgba(56, 189, 248, 0.35);
-  color: #ffffff;
+  background: rgba(2, 132, 199, 0.25);
+  color: #0f172a;
 }
 
 button, input, select {
