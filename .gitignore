@@ -1,0 +1,30 @@
+# Root .gitignore for Shop App
+
+# Dependencies & Build Artifacts
+**/node_modules/
+**/dist/
+**/dist-ssr/
+backend/target/
+frontend/dist/
+
+# IDE & Editor
+.idea/
+.vscode/
+*.iml
+*.classpath
+*.project
+*.settings/
+
+# Environment Variables & Secrets
+.env
+.env.*
+!.env.example
+application-local.properties
+
+# Logs & System Files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+Thumbs.db

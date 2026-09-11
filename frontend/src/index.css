@@ -1,0 +1,109 @@
+:root {
+  --font-spatial: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-body: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  /* Spatial Computing / visionOS Glass Palette */
+  --spatial-void: #07090e;
+  --spatial-space: #0c0f17;
+  
+  /* Frosted Glass Layers */
+  --glass-base: rgba(18, 22, 36, 0.55);
+  --glass-elevated: rgba(26, 32, 54, 0.65);
+  --glass-card: rgba(22, 28, 48, 0.5);
+  --glass-card-hover: rgba(32, 40, 68, 0.65);
+  --glass-input: rgba(12, 15, 26, 0.6);
+  --glass-pill: rgba(255, 255, 255, 0.08);
+
+  /* Refractive Bevels & Borders */
+  --glass-border: rgba(255, 255, 255, 0.14);
+  --glass-border-subtle: rgba(255, 255, 255, 0.07);
+  --glass-border-active: rgba(255, 255, 255, 0.35);
+  --glass-border-focus: rgba(94, 234, 212, 0.6);
+
+  /* Spatial Specular & Shadows */
+  --spatial-bevel: inset 0 1px 1.5px 0 rgba(255, 255, 255, 0.32), inset 0 -1px 1px 0 rgba(0, 0, 0, 0.4);
+  --spatial-shadow-deep: 0 30px 80px -15px rgba(0, 0, 0, 0.75), 0 0 0 1px var(--glass-border);
+  --spatial-shadow-elevated: 0 40px 100px -20px rgba(0, 0, 0, 0.85), 0 0 0 1px var(--glass-border-active);
+  --spatial-shadow-card: 0 20px 50px -10px rgba(0, 0, 0, 0.5), 0 0 0 1px var(--glass-border);
+
+  /* Volumetric Radiant Accents */
+  --accent-cyan: #38bdf8;
+  --accent-cyan-glow: rgba(56, 189, 248, 0.35);
+  --accent-mint: #2dd4bf;
+  --accent-mint-glow: rgba(45, 212, 191, 0.35);
+  --accent-violet: #a855f7;
+  --accent-violet-glow: rgba(168, 85, 247, 0.35);
+  --accent-amber: #fbbf24;
+  --accent-rose: #f43f5e;
+
+  /* Typography Colors */
+  --text-primary: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-dim: #64748b;
+
+  /* Curvatures */
+  --radius-sm: 10px;
+  --radius-md: 18px;
+  --radius-lg: 26px;
+  --radius-pill: 9999px;
+
+  /* Spatial Transitions */
+  --spatial-spring: cubic-bezier(0.16, 1, 0.3, 1);
+  --spatial-smooth: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  min-height: 100vh;
+  background-color: var(--spatial-void);
+  color: var(--text-primary);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  line-height: 1.5;
+  overflow-x: hidden;
+  letter-spacing: -0.01em;
+}
+
+/* Cosmic / Volumetric Spatial Background Environment */
+body {
+  background-image:
+    radial-gradient(ellipse 70% 60% at 20% 10%, rgba(56, 189, 248, 0.15) 0%, transparent 60%),
+    radial-gradient(ellipse 60% 50% at 85% 25%, rgba(168, 85, 247, 0.16) 0%, transparent 60%),
+    radial-gradient(ellipse 80% 60% at 50% 90%, rgba(45, 212, 191, 0.12) 0%, transparent 70%),
+    radial-gradient(circle at 50% 50%, rgba(15, 23, 42, 0.8) 0%, #07090e 100%);
+  background-attachment: fixed;
+  background-size: cover;
+}
+
+/* Glass Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-pill);
+  backdrop-filter: blur(10px);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+::selection {
+  background: rgba(56, 189, 248, 0.35);
+  color: #ffffff;
+}
+
+button, input, select {
+  font-family: inherit;
+}

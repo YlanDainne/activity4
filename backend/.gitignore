@@ -1,0 +1,32 @@
+### Build & IDE ###
+target/
+!.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+
+### Credentials & Environment Variables ###
+.env
+.env.*
+!.env.example
+application-local.properties
+application-dev.properties
+
+### Frontend (Node / Vite) ###
+node_modules/
+dist/
+dist-ssr/
+*.local
+
+### Logs & OS Artifacts ###
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.DS_Store
+Thumbs.db
