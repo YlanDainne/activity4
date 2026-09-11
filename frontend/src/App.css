@@ -68,42 +68,6 @@
   100% { transform: translate(-50px, -30px) scale(0.95); }
 }
 
-/* ---------------------------------------------------------
-   TOP ACTIONS BAR (MINIMAL GLASS AUDIO TOGGLE)
-   --------------------------------------------------------- */
-.spatial-top-bar {
-  display: flex;
-  justify-content: flex-end;
-  width: 100%;
-  max-width: 1200px;
-  margin: 0 auto 12px auto;
-  position: relative;
-  z-index: 90;
-}
-
-.dock-audio-btn.minimal-audio-toggle {
-  background: rgba(255, 255, 255, 0.78);
-  border: 1px solid rgba(255, 255, 255, 0.9);
-  color: var(--text-secondary);
-  border-radius: var(--radius-pill);
-  padding: 7px 16px;
-  font-size: 0.78rem;
-  font-weight: 600;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  backdrop-filter: blur(24px) saturate(180%);
-  box-shadow: 0 4px 15px -2px rgba(100, 116, 139, 0.12), var(--spatial-bevel);
-  transition: all 0.2s var(--spatial-spring);
-}
-
-.dock-audio-btn.minimal-audio-toggle:hover {
-  background: #ffffff;
-  color: var(--text-primary);
-  box-shadow: 0 6px 20px -2px rgba(100, 116, 139, 0.2);
-  transform: translateY(-1px);
-}
 
 /* ---------------------------------------------------------
    MAIN WRAPPER & VOLUMETRIC HEADER

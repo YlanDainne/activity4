@@ -208,20 +208,6 @@ export default function App() {
         <div className="spatial-orb spatial-orb-mint" />
       </div>
 
-      {/* Floating Spatial Audio Toggle Button */}
-      <div className="spatial-top-bar">
-        <button
-          type="button"
-          className="dock-audio-btn minimal-audio-toggle"
-          onClick={() => setSoundEnabled(!soundEnabled)}
-          aria-label="Toggle spatial sound feedback"
-          title="Toggle audio feedback"
-        >
-          <span>{soundEnabled ? '🔊' : '🔇'}</span>
-          <span>{soundEnabled ? 'Audio On' : 'Muted'}</span>
-        </button>
-      </div>
-
       {/* Main Spatial Stage */}
       <main className="spatial-main-container">
         {/* Volumetric Header */}
