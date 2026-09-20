@@ -1,98 +1,114 @@
 package edu.cit.soldano.shop;
 
-import edu.cit.soldano.inventory.InventoryItem;
 import edu.cit.soldano.inventory.InventoryService;
+import edu.cit.soldano.inventory.ProductDto;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.web.server.ResponseStatusException;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
+@ExtendWith(MockitoExtension.class)
 class OrderServiceTest {
 
+    @Mock
     private OrderRepository orderRepository;
+
+    @Mock
     private InventoryService inventoryService;
+
+    @Mock
+    private ApplicationEventPublisher eventPublisher;
+
     private OrderService orderService;
 
     @BeforeEach
     void setUp() {
-        orderRepository = Mockito.mock(OrderRepository.class);
-        inventoryService = Mockito.mock(InventoryService.class);
-        orderService = new OrderService(orderRepository, inventoryService);
+        orderService = new OrderService(orderRepository, inventoryService, eventPublisher);
     }
 
     @Test
-    @DisplayName("Should confirm order when stock is sufficient")
-    void placeOrder_confirmedPath() {
-        // Arrange
-        String productId = "P100";
-        int orderQty = 2;
-        InventoryItem itemBefore = new InventoryItem(productId, "Wireless Mouse", 25);
-        InventoryItem itemAfter = new InventoryItem(productId, "Wireless Mouse", 23);
-
-        when(inventoryService.getItem(productId))
-                .thenReturn(Optional.of(itemBefore))
-                .thenReturn(Optional.of(itemAfter));
-        when(inventoryService.reserve(productId, orderQty)).thenReturn(true);
+    void testCreateOrder_Success() {
+        when(inventoryService.checkStock("P100", 2)).thenReturn(true);
         when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
+        when(inventoryService.getAllProducts()).thenReturn(List.of(new ProductDto("P100", "Wireless Mouse", 20)));
 
-        // Act
-        OrderResponse response = orderService.placeOrder(new OrderRequest(productId, orderQty));
+        OrderRequest request = new OrderRequest(List.of(new OrderRequestItem("P100", 2)));
+        OrderResponse response = orderService.createOrder(request);
 
-        // Assert
         assertEquals("CONFIRMED", response.status());
         assertNull(response.reason());
-        assertEquals(23, response.inventory());
-        verify(inventoryService).reserve(productId, orderQty);
-        verify(orderRepository).save(argThat(order -> "CONFIRMED".equals(order.getStatus())));
+        assertNotNull(response.inventory());
+        assertEquals(1, response.inventory().size());
+        verify(inventoryService, times(1)).reserve("P100", 2);
+        verify(eventPublisher, times(1)).publishEvent(any(Object.class));
     }
 
     @Test
-    @DisplayName("Should reject order when stock is insufficient")
-    void placeOrder_rejectedPath_insufficientStock() {
-        // Arrange
-        String productId = "P300";
-        int orderQty = 1;
-        InventoryItem item = new InventoryItem(productId, "USB-C Hub", 0);
-
-        when(inventoryService.getItem(productId)).thenReturn(Optional.of(item));
-        when(inventoryService.reserve(productId, orderQty)).thenReturn(false);
+    void testCreateOrder_AllOrNothingRollback_WhenOneItemFails() {
+        when(inventoryService.checkStock("P100", 2)).thenReturn(true);
+        when(inventoryService.checkStock("P200", 10)).thenReturn(false);
         when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
+        when(inventoryService.getAllProducts()).thenReturn(List.of());
 
-        // Act
-        OrderResponse response = orderService.placeOrder(new OrderRequest(productId, orderQty));
+        OrderRequest request = new OrderRequest(List.of(
+                new OrderRequestItem("P100", 2),
+                new OrderRequestItem("P200", 10)
+        ));
+        OrderResponse response = orderService.createOrder(request);
 
-        // Assert
         assertEquals("REJECTED", response.status());
-        assertTrue(response.reason().contains("Insufficient stock"));
-        assertEquals(0, response.inventory());
-        verify(inventoryService).reserve(productId, orderQty);
-        verify(orderRepository).save(argThat(order -> "REJECTED".equals(order.getStatus())));
+        assertNotNull(response.reason());
+        // Verify NO reservations were made because of all-or-nothing check
+        verify(inventoryService, never()).reserve(anyString(), anyInt());
+        verify(eventPublisher, times(1)).publishEvent(any(Object.class));
     }
 
     @Test
-    @DisplayName("Should reject order when product does not exist")
-    void placeOrder_rejectedPath_productNotFound() {
-        // Arrange
-        String productId = "NON_EXISTENT";
-        int orderQty = 1;
+    void testCancelOrder_Success() {
+        Order order = new Order("ORD-1", "CONFIRMED", null);
+        OrderItem item1 = new OrderItem(order, "P100", 2);
+        order.setItems(List.of(item1));
 
-        when(inventoryService.getItem(productId)).thenReturn(Optional.empty());
-        when(orderRepository.save(any(Order.class))).thenAnswer(i -> i.getArgument(0));
+        when(orderRepository.findById("ORD-1")).thenReturn(Optional.of(order));
 
-        // Act
-        OrderResponse response = orderService.placeOrder(new OrderRequest(productId, orderQty));
+        orderService.cancelOrder("ORD-1");
 
-        // Assert
-        assertEquals("REJECTED", response.status());
-        assertEquals("Product not found", response.reason());
-        assertNull(response.inventory());
-        verify(orderRepository).save(argThat(order -> "REJECTED".equals(order.getStatus())));
-        verify(inventoryService, never()).reserve(any(), anyInt());
+        assertEquals("CANCELLED", order.getStatus());
+        verify(inventoryService, times(1)).restock("P100", 2);
+        verify(orderRepository, times(1)).save(order);
+    }
+
+    @Test
+    void testCancelOrder_NotFound_Throws404() {
+        when(orderRepository.findById("ORD-MISSING")).thenReturn(Optional.empty());
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                orderService.cancelOrder("ORD-MISSING")
+        );
+        assertEquals(404, ex.getStatusCode().value());
+    }
+
+    @Test
+    void testCancelOrder_AlreadyCancelled_Throws409() {
+        Order order = new Order("ORD-2", "CANCELLED", null);
+        when(orderRepository.findById("ORD-2")).thenReturn(Optional.of(order));
+
+        ResponseStatusException ex = assertThrows(ResponseStatusException.class, () ->
+                orderService.cancelOrder("ORD-2")
+        );
+        assertEquals(409, ex.getStatusCode().value());
+        verify(inventoryService, never()).restock(anyString(), anyInt());
     }
 }

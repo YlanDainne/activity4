@@ -1,7 +1,5 @@
 package edu.cit.soldano.shop;
 
-public record OrderRequest(
-    String productId,
-    int quantity
-) {
-}
+import java.util.List;
+
+public record OrderRequest(List<OrderRequestItem> items) {}

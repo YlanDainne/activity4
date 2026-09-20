@@ -7,13 +7,13 @@ import jakarta.persistence.Table;
 
 @Entity
 @Table(name = "inventory")
-public class InventoryItem {
+class InventoryItem {
 
     @Id
     @Column(name = "product_id", nullable = false, length = 50)
     private String productId;
 
-    @Column(nullable = false, length = 100)
+    @Column(name = "product_name", nullable = false, length = 100)
     private String name;
 
     @Column(nullable = false)
@@ -42,6 +42,10 @@ public class InventoryItem {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public String getProductName() {
+        return name;
     }
 
     public int getStock() {

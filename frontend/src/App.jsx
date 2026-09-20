@@ -1,43 +1,39 @@
-import { useState, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import './App.css';
 
 const CATALOG = [
   {
     id: 'P100',
-    name: 'Wireless Mouse',
-    icon: '🖱️',
-    price: 1890,
-    category: 'Peripherals',
-    initialStock: 25,
+    name: 'Mechanical Keyboard',
+    icon: '⌨️',
+    price: 4250,
+    category: 'Hardware',
     badge: 'SPATIAL SENSOR',
     badgeType: 'hot',
     desc: 'Sub-millimeter optical precision with haptic force feedback and translucent frosted shell.',
   },
   {
     id: 'P200',
-    name: 'Mechanical Keyboard',
-    icon: '⌨️',
-    price: 4250,
-    category: 'Hardware',
-    initialStock: 10,
+    name: 'Wireless Mouse',
+    icon: '🖱️',
+    price: 1890,
+    category: 'Peripherals',
     badge: 'LIMITED ARCHIVE',
     badgeType: 'limited',
-    desc: 'Magnetic hall-effect switches with adjustable actuation and precision milled aluminum chassis.',
+    desc: 'Magnetic hall-effect switches with adjustable actuation and aluminum chassis.',
   },
   {
     id: 'P300',
-    name: 'USB-C Hub',
+    name: 'USB-C Monitor Hub',
     icon: '🔌',
     price: 1290,
     category: 'Gear',
-    initialStock: 0,
-    badge: 'DEPLETED',
+    badge: 'HIGH DEMAND',
     badgeType: 'soldout',
-    desc: 'Dual 4K spatial display output, high-bandwidth Thunderbolt expansion, and 100W Power Delivery.',
+    desc: 'Dual 4K spatial display output, high-bandwidth Thunderbolt expansion, and 100W PD.',
   },
 ];
 
-// Lightweight browser-native synthesized spatial acoustic feedback
 function playSpatialSound(type) {
   try {
     const AudioContext = window.AudioContext || window.webkitAudioContext;
@@ -59,8 +55,8 @@ function playSpatialSound(type) {
       osc.stop(now + 0.05);
     } else if (type === 'confirm') {
       osc.type = 'triangle';
-      osc.frequency.setValueAtTime(587.33, now); // D5
-      osc.frequency.setValueAtTime(880, now + 0.08); // A5
+      osc.frequency.setValueAtTime(587.33, now);
+      osc.frequency.setValueAtTime(880, now + 0.08);
       gain.gain.setValueAtTime(0.08, now);
       gain.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
       osc.start(now);
@@ -74,177 +70,186 @@ function playSpatialSound(type) {
       osc.start(now);
       osc.stop(now + 0.15);
     }
-  } catch {
-    // AudioContext blocked or not allowed until user interaction
-  }
+  } catch {}
 }
 
 export default function App() {
-  const [productId, setProductId] = useState('P100');
-  const [quantity, setQuantity] = useState(1);
+  const [stockMap, setStockMap] = useState({});
+  const [cart, setCart] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
-  const [recentOrders, setRecentOrders] = useState([]);
-  const [soundEnabled, setSoundEnabled] = useState(true);
-  const [stockMap, setStockMap] = useState({
-    P100: 22,
-    P200: 8,
-    P300: 0,
-  });
+  const [lastResult, setLastResult] = useState(null);
 
   const cardsContainerRef = useRef(null);
 
-  const selectedProduct = CATALOG.find((p) => p.id === productId) || CATALOG[0];
-  const currentStock = stockMap[productId] !== undefined ? stockMap[productId] : selectedProduct.initialStock;
+  // Fetch live state from Supabase/Spring Boot
+  const fetchAllData = async () => {
+    try {
+      const [invRes, orderRes, notifRes] = await Promise.all([
+        fetch('http://localhost:8080/api/inventory'),
+        fetch('http://localhost:8080/api/orders'),
+        fetch('http://localhost:8080/api/notifications'),
+      ]);
 
-  const triggerSound = (type) => {
-    if (soundEnabled) {
-      playSpatialSound(type);
+      if (invRes.ok) {
+        const invData = await invRes.json();
+        const map = {};
+        invData.forEach((item) => {
+          map[item.productId] = item.stock;
+        });
+        setStockMap(map);
+      }
+
+      if (orderRes.ok) {
+        const orderData = await orderRes.json();
+        setOrders(orderData.reverse());
+      }
+
+      if (notifRes.ok) {
+        const notifData = await notifRes.json();
+        setNotifications(notifData);
+      }
+    } catch (err) {
+      console.error('Failed to sync data:', err);
     }
   };
 
-  const handleQuantityChange = (delta) => {
-    triggerSound('click');
-    setQuantity((prev) => Math.max(1, Math.min(99, Number(prev) + delta)));
+  useEffect(() => {
+    fetchAllData();
+  }, []);
+
+  const addToCart = (productId) => {
+    playSpatialSound('click');
+    setCart((prev) => {
+      const existing = prev.find((i) => i.productId === productId);
+      if (existing) {
+        return prev.map((i) =>
+          i.productId === productId ? { ...i, quantity: i.quantity + 1 } : i
+        );
+      }
+      return [...prev, { productId, quantity: 1 }];
+    });
   };
 
-  const handleSetQuickQuantity = (qty) => {
-    triggerSound('click');
-    setQuantity(qty);
+  const updateCartQty = (productId, delta) => {
+    playSpatialSound('click');
+    setCart((prev) =>
+      prev
+        .map((i) => {
+          if (i.productId === productId) {
+            const nextQty = i.quantity + delta;
+            return nextQty > 0 ? { ...i, quantity: nextQty } : null;
+          }
+          return i;
+        })
+        .filter(Boolean)
+    );
   };
 
-  const handleSelectProduct = (id) => {
-    triggerSound('click');
-    setProductId(id);
-    setResult(null);
-  };
+  const clearCart = () => setCart([]);
 
-  // 3D Tilt Glare tracking on mouse move
-  const handleCardMouseMove = (e, cardElem) => {
-    if (!cardElem) return;
-    const rect = cardElem.getBoundingClientRect();
-    const x = e.clientX - rect.left;
-    const y = e.clientY - rect.top;
-    cardElem.style.setProperty('--mouse-x', `${(x / rect.width) * 100}%`);
-    cardElem.style.setProperty('--mouse-y', `${(y / rect.height) * 100}%`);
-  };
-
-  const handleSubmit = async (e) => {
+  const handlePlaceOrder = async (e) => {
     e.preventDefault();
-    if (loading) return;
+    if (cart.length === 0 || loading) return;
 
-    triggerSound('click');
+    playSpatialSound('click');
     setLoading(true);
-    setResult(null);
-
-    const startTime = performance.now();
+    setLastResult(null);
 
     try {
-      const response = await fetch('http://localhost:8080/api/orders', {
+      const res = await fetch('http://localhost:8080/api/orders', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Accept': 'application/json',
+          Accept: 'application/json',
         },
         body: JSON.stringify({
-          productId,
-          quantity: Number(quantity),
+          items: cart.map((item) => ({
+            productId: item.productId,
+            quantity: Number(item.quantity),
+          })),
         }),
       });
 
-      const data = await response.json();
-      const elapsed = Math.round(performance.now() - startTime);
+      const data = await res.json();
+      setLastResult(data);
 
-      const outcome = {
-        ...data,
-        productId,
-        productName: selectedProduct.name,
-        unitPrice: selectedProduct.price,
-        quantity: Number(quantity),
-        timestamp: new Date().toLocaleTimeString(),
-        elapsedMs: elapsed,
-      };
-
-      if (outcome.inventory !== null && outcome.inventory !== undefined) {
-        setStockMap((prev) => ({
-          ...prev,
-          [productId]: outcome.inventory,
-        }));
-      }
-
-      setResult(outcome);
-      setRecentOrders((prev) => [outcome, ...prev.slice(0, 4)]);
-
-      if (outcome.status === 'CONFIRMED') {
-        triggerSound('confirm');
+      if (data.status === 'CONFIRMED') {
+        playSpatialSound('confirm');
+        clearCart();
       } else {
-        triggerSound('reject');
+        playSpatialSound('reject');
       }
+
+      // Re-fetch live inventory and updates
+      await fetchAllData();
     } catch (err) {
-      const errorOutcome = {
+      setLastResult({
         status: 'REJECTED',
-        reason: 'Network connection issue: ' + err.message,
-        inventory: currentStock,
-        productId,
-        productName: selectedProduct.name,
-        unitPrice: selectedProduct.price,
-        quantity: Number(quantity),
-        timestamp: new Date().toLocaleTimeString(),
-        elapsedMs: 0,
-      };
-      setResult(errorOutcome);
-      triggerSound('reject');
+        reason: 'Network error: ' + err.message,
+      });
+      playSpatialSound('reject');
     } finally {
       setLoading(false);
     }
   };
 
+  const handleCancelOrder = async (orderId) => {
+    playSpatialSound('click');
+    try {
+      const res = await fetch(`http://localhost:8080/api/orders/${orderId}/cancel`, {
+        method: 'POST',
+      });
+      if (res.ok) {
+        playSpatialSound('confirm');
+        await fetchAllData();
+      }
+    } catch (err) {
+      console.error('Failed to cancel order:', err);
+    }
+  };
+
+  const cartTotal = cart.reduce((sum, item) => {
+    const prod = CATALOG.find((c) => c.id === item.productId);
+    return sum + (prod ? prod.price * item.quantity : 0);
+  }, 0);
+
   return (
     <div className="spatial-viewport">
-      {/* Volumetric Ambient Lighting Spheres */}
       <div className="spatial-ambient-canvas" aria-hidden="true">
         <div className="spatial-orb spatial-orb-cyan" />
         <div className="spatial-orb spatial-orb-violet" />
         <div className="spatial-orb spatial-orb-mint" />
       </div>
 
-      {/* Main Spatial Stage */}
       <main className="spatial-main-container">
-        {/* Volumetric Header */}
         <header className="spatial-hero">
           <h1 className="spatial-hero-title">
             YLAN&apos;S <span>SHOP</span>
           </h1>
         </header>
 
-        {/* Spatial Grid: Catalog & Dispatch Panel */}
         <div className="spatial-grid">
-          {/* Left Column: Spatial Products */}
+          {/* Left Column: Live Vault Catalog */}
           <section className="spatial-catalog-column">
             <div className="spatial-section-header">
-              <h2>
-                <span>❖</span> The Spatial Collection
-              </h2>
+              <h2><span>❖</span> The Vault Catalog</h2>
               <span className="spatial-badge-counter">{CATALOG.length} VAULT ITEMS</span>
             </div>
 
             <div className="spatial-cards-list" ref={cardsContainerRef}>
               {CATALOG.map((item) => {
-                const isSelected = item.id === productId;
-                const liveStock = stockMap[item.id] !== undefined ? stockMap[item.id] : item.initialStock;
+                const liveStock = stockMap[item.id] !== undefined ? stockMap[item.id] : 0;
                 const isOutOfStock = liveStock <= 0;
+                const isLowStock = liveStock > 0 && liveStock < 5;
 
                 return (
                   <div key={item.id} className="spatial-card-outer">
                     <div
-                      className={`spatial-card ${isSelected ? 'active-selected' : ''} ${
-                        isOutOfStock ? 'depleted-card' : ''
+                      className={`spatial-card ${isOutOfStock ? 'depleted-card' : ''} ${
+                        isLowStock ? 'low-stock-highlight' : ''
                       }`}
-                      onClick={() => handleSelectProduct(item.id)}
-                      onMouseMove={(e) => handleCardMouseMove(e, e.currentTarget)}
-                      role="button"
-                      tabIndex={0}
-                      onKeyDown={(e) => e.key === 'Enter' && handleSelectProduct(item.id)}
                     >
                       <div className="card-header-row">
                         <div className="card-left-cluster">
@@ -256,6 +261,9 @@ export default function App() {
                         </div>
 
                         <div className="card-pill-tags">
+                          {isLowStock && (
+                            <span className="spatial-edition-badge limited">LOW STOCK (&lt;5)</span>
+                          )}
                           <span className={`spatial-edition-badge ${item.badgeType}`}>
                             {item.badge}
                           </span>
@@ -271,14 +279,18 @@ export default function App() {
                         </div>
 
                         <span className={`stock-capsule ${liveStock > 0 ? 'in-stock' : 'out-stock'}`}>
-                          {liveStock > 0 ? `● ${liveStock} In Stock` : '● Depleted'}
+                          ● {liveStock} In Supabase
                         </span>
 
-                        {isSelected && (
-                          <span className="card-selected-indicator">
-                            ✓ Ready
-                          </span>
-                        )}
+                        <button
+                          type="button"
+                          className="stepper-action-btn"
+                          disabled={isOutOfStock}
+                          onClick={() => addToCart(item.id)}
+                          style={{ padding: '4px 12px', fontSize: '0.9rem', width: 'auto' }}
+                        >
+                          + Add to Cart
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -287,246 +299,191 @@ export default function App() {
             </div>
           </section>
 
-          {/* Right Column: Spatial Dispatch Terminal */}
+          {/* Right Column: Multi-Item Cart & Dispatch Terminal */}
           <section className="spatial-terminal-column">
             <div className="spatial-terminal-panel">
               <div className="terminal-header">
                 <div className="terminal-heading-group">
                   <span className="terminal-icon">✦</span>
-                  <h3>Dispatch Terminal</h3>
+                  <h3>Multi-Item Cart</h3>
                 </div>
-                <span className="terminal-telemetry-badge">LIVE SYNC</span>
+                <span className="terminal-telemetry-badge">ALL-OR-NOTHING</span>
               </div>
 
-              {/* Selected Focus Card */}
-              <div className="selected-focus-window">
-                <div className="focus-left">
-                  <div className="focus-orb">{selectedProduct.icon}</div>
-                  <div className="focus-details">
-                    <h4>{selectedProduct.name}</h4>
-                    <span>SKU: {selectedProduct.id} &middot; {selectedProduct.category}</span>
-                  </div>
+              {cart.length === 0 ? (
+                <div className="empty-ledger-state" style={{ padding: '24px 0' }}>
+                  Cart is empty. Click "+ Add to Cart" on catalog items.
                 </div>
-                <div className="focus-cost">
-                  <span className="unit-tag">PRICE</span>
-                  <span className="val">₱{selectedProduct.price.toLocaleString()}</span>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', margin: '14px 0' }}>
+                  {cart.map((ci) => {
+                    const prod = CATALOG.find((c) => c.id === ci.productId);
+                    return (
+                      <div
+                        key={ci.productId}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          padding: '8px 12px',
+                          background: 'rgba(255,255,255,0.05)',
+                          borderRadius: '8px',
+                        }}
+                      >
+                        <div>
+                          <strong>{prod?.name || ci.productId}</strong>
+                          <div style={{ fontSize: '0.8rem', opacity: 0.7 }}>
+                            ₱{prod?.price.toLocaleString()} each
+                          </div>
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <button
+                            type="button"
+                            className="stepper-action-btn"
+                            onClick={() => updateCartQty(ci.productId, -1)}
+                          >
+                            -
+                          </button>
+                          <span>{ci.quantity}</span>
+                          <button
+                            type="button"
+                            className="stepper-action-btn"
+                            onClick={() => updateCartQty(ci.productId, 1)}
+                          >
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
+              )}
+
+              <div className="spatial-subtotal-pod">
+                <span className="subtotal-label">Cart Total</span>
+                <span className="subtotal-amount">₱{cartTotal.toLocaleString()}</span>
               </div>
 
-              {/* Order Form */}
-              <form onSubmit={handleSubmit} className="spatial-order-form">
-                <div className="spatial-field-group">
-                  <div className="field-label-bar">
-                    <label htmlFor="spatial-qty-input">Reservation Units</label>
-                    <span className="field-stock-info">
-                      Stock: <strong>{currentStock} available</strong>
-                    </span>
-                  </div>
+              <button
+                id="submit-order-btn"
+                type="button"
+                className="spatial-cta-btn"
+                disabled={loading || cart.length === 0}
+                onClick={handlePlaceOrder}
+              >
+                {loading ? 'Dispatching...' : 'Place Multi-Item Order ➔'}
+              </button>
 
-                  <div className="spatial-stepper">
-                    <button
-                      type="button"
-                      className="stepper-action-btn"
-                      onClick={() => handleQuantityChange(-1)}
-                      disabled={quantity <= 1 || loading}
-                      aria-label="Decrease quantity"
-                    >
-                      &minus;
-                    </button>
-                    <input
-                      id="spatial-qty-input"
-                      type="number"
-                      className="stepper-display-input"
-                      min="1"
-                      max="99"
-                      value={quantity}
-                      onChange={(e) => setQuantity(e.target.value)}
-                      required
-                    />
-                    <button
-                      type="button"
-                      className="stepper-action-btn"
-                      onClick={() => handleQuantityChange(1)}
-                      disabled={quantity >= 99 || loading}
-                      aria-label="Increase quantity"
-                    >
-                      &#43;
-                    </button>
-                  </div>
-
-                  <div className="quick-preset-row">
-                    <button
-                      type="button"
-                      className="preset-capsule"
-                      onClick={() => handleSetQuickQuantity(1)}
-                    >
-                      1 Unit
-                    </button>
-                    <button
-                      type="button"
-                      className="preset-capsule"
-                      onClick={() => handleSetQuickQuantity(2)}
-                    >
-                      2 Units
-                    </button>
-                    <button
-                      type="button"
-                      className="preset-capsule"
-                      onClick={() => handleSetQuickQuantity(5)}
-                    >
-                      5 Units
-                    </button>
-                  </div>
-                </div>
-
-                {/* Subtotal Pod */}
-                <div className="spatial-subtotal-pod">
-                  <span className="subtotal-label">Subtotal</span>
-                  <span className="subtotal-amount">
-                    ₱{(selectedProduct.price * Number(quantity || 1)).toLocaleString()}
-                  </span>
-                </div>
-
-                {/* Dispatch Button */}
-                <button
-                  id="submit-order-btn"
-                  type="submit"
-                  className="spatial-cta-btn"
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <>
-                      <span className="spatial-spinner" />
-                      <span>Transmitting to Vault...</span>
-                    </>
-                  ) : (
-                    <>
-                      <span>Dispatch Order</span>
-                      <span>➔</span>
-                    </>
-                  )}
-                </button>
-              </form>
-
-              {/* Volumetric Outcome Notification */}
-              {result && (
+              {lastResult && (
                 <div
                   id="order-result-banner"
                   className={`spatial-outcome-window ${
-                    result.status === 'CONFIRMED' ? 'confirmed-window' : 'rejected-window'
+                    lastResult.status === 'CONFIRMED' ? 'confirmed-window' : 'rejected-window'
                   }`}
+                  style={{ marginTop: '16px' }}
                 >
                   <div className="outcome-top-bar">
                     <span className="outcome-status-pill">
-                      {result.status === 'CONFIRMED' ? '✓ ORDER CONFIRMED' : '✕ RESERVATION HELD'}
+                      {lastResult.status === 'CONFIRMED' ? '✓ CONFIRMED' : '✕ REJECTED'}
                     </span>
-                    <span className="outcome-latency">{result.elapsedMs}ms</span>
+                    <span className="outcome-latency">{lastResult.orderId || 'FAILED'}</span>
                   </div>
-
                   <div className="outcome-body">
-                    {result.status === 'CONFIRMED' ? (
-                      <>
-                        <h4>Vault Dispatch Sealed</h4>
-                        <p>
-                          Reserved <strong>{result.quantity}x {result.productName}</strong>. Your
-                          order has been validated and recorded.
-                        </p>
-                      </>
+                    {lastResult.status === 'CONFIRMED' ? (
+                      <p>All items reserved and atomic transaction committed.</p>
                     ) : (
-                      <>
-                        <h4>Order Declined</h4>
-                        <p>
-                          {result.reason || 'Requested quantity exceeds available vault inventory.'}
-                        </p>
-                      </>
-                    )}
-
-                    {result.inventory !== null && result.inventory !== undefined && (
-                      <div className="outcome-stock-telemetry">
-                        <span className="telemetry-label">Live Remaining Stock:</span>
-                        <span className="telemetry-val">{result.inventory} units</span>
-                      </div>
+                      <p>{lastResult.reason || 'All-or-nothing rollback triggered.'}</p>
                     )}
                   </div>
                 </div>
               )}
+            </div>
 
-              {/* Spatial Perks Row */}
-              <div className="spatial-perks-row">
-                <div className="spatial-perk">
-                  <span className="perk-glyph">⚡</span>
-                  <span>Instant Verification</span>
+            {/* Notifications Feed */}
+            <div className="spatial-terminal-panel" style={{ marginTop: '20px' }}>
+              <div className="terminal-header">
+                <div className="terminal-heading-group">
+                  <span className="terminal-icon">🔔</span>
+                  <h3>Domain Notifications</h3>
                 </div>
-                <div className="spatial-perk">
-                  <span className="perk-glyph">🛡️</span>
-                  <span>Direct Guarantee</span>
-                </div>
-                <div className="spatial-perk">
-                  <span className="perk-glyph">📦</span>
-                  <span>Priority Courier</span>
-                </div>
-                <div className="spatial-perk">
-                  <span className="perk-glyph">✧</span>
-                  <span>Original Edition</span>
-                </div>
+                <span className="spatial-badge-counter">{notifications.length} EVENTS</span>
+              </div>
+              <div style={{ maxHeight: '180px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {notifications.length === 0 ? (
+                  <div className="empty-ledger-state">No domain events received yet.</div>
+                ) : (
+                  notifications.map((n) => (
+                    <div
+                      key={n.notificationId}
+                      style={{
+                        padding: '6px 10px',
+                        background: 'rgba(255,255,255,0.03)',
+                        borderRadius: '6px',
+                        fontSize: '0.82rem',
+                      }}
+                    >
+                      <div>{n.message}</div>
+                      <div style={{ opacity: 0.5, fontSize: '0.7rem' }}>
+                        {new Date(n.createdAt).toLocaleTimeString()}
+                      </div>
+                    </div>
+                  ))
+                )}
               </div>
             </div>
           </section>
         </div>
 
-        {/* Spatial Session History Drawer */}
-        <section className="spatial-ledger-card">
+        {/* Orders Table with Cancel & Restock */}
+        <section className="spatial-ledger-card" style={{ marginTop: '28px' }}>
           <div className="ledger-top">
-            <h3>
-              <span>📋</span> Session Order Record
-            </h3>
-            <span className="spatial-badge-counter">{recentOrders.length} ENTRIES</span>
+            <h3><span>📋</span> Order History & Restock Control</h3>
+            <span className="spatial-badge-counter">{orders.length} ORDERS</span>
           </div>
 
-          {recentOrders.length === 0 ? (
-            <div className="empty-ledger-state">
-              No orders logged in this spatial session yet. Select an item and dispatch above.
-            </div>
+          {orders.length === 0 ? (
+            <div className="empty-ledger-state">No orders registered in Supabase.</div>
           ) : (
             <div className="ledger-rows-wrapper">
-              {recentOrders.map((order, index) => (
-                <div key={index} className="spatial-ledger-item">
+              {orders.map((o) => (
+                <div key={o.orderId} className="spatial-ledger-item">
                   <div className="item-left">
                     <span
                       className={`item-status-pill ${
-                        order.status === 'CONFIRMED' ? 'confirmed' : 'rejected'
+                        o.status === 'CONFIRMED' ? 'confirmed' : 'rejected'
                       }`}
                     >
-                      {order.status}
+                      {o.status}
                     </span>
-                    <span className="item-name">{order.productName}</span>
-                    <span className="item-qty">x{order.quantity}</span>
+                    <span className="item-name"><strong>{o.orderId}</strong></span>
+                    <span className="item-qty">
+                      {o.items?.map((it) => `${it.productId} (x${it.quantity})`).join(', ') || o.reason}
+                    </span>
                   </div>
 
                   <div className="item-right">
-                    <span>₱{(order.unitPrice * order.quantity).toLocaleString()}</span>
-                    <span>&middot;</span>
-                    <span>{order.timestamp}</span>
-                    <span>&middot;</span>
-                    <span>{order.elapsedMs}ms</span>
+                    {o.status === 'CONFIRMED' && (
+                      <button
+                        type="button"
+                        onClick={() => handleCancelOrder(o.orderId)}
+                        style={{
+                          background: 'rgba(255, 77, 79, 0.2)',
+                          color: '#ff4d4f',
+                          border: '1px solid rgba(255, 77, 79, 0.4)',
+                          borderRadius: '6px',
+                          padding: '4px 8px',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        Cancel & Restock
+                      </button>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
           )}
         </section>
-
-        {/* Floating Grabber Bar (visionOS Ergonomics) */}
-        <footer className="spatial-grabber-bar-container">
-          <div className="spatial-grabber-pill" />
-          <div className="spatial-footer-info">
-            <span>YLAN&apos;S SHOP</span>
-            <span>&bull;</span>
-            <span>SPATIAL VAULT COMPUTING</span>
-            <span>&bull;</span>
-            <span>&copy; {new Date().getFullYear()}</span>
-          </div>
-        </footer>
       </main>
     </div>
   );
