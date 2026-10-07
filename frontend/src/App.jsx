@@ -78,6 +78,7 @@ export default function App() {
   const [cart, setCart] = useState([]);
   const [orders, setOrders] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  const [channelStatus, setChannelStatus] = useState(null);
   const [loading, setLoading] = useState(false);
   const [lastResult, setLastResult] = useState(null);
 
@@ -86,10 +87,11 @@ export default function App() {
   // Fetch live state from Supabase/Spring Boot
   const fetchAllData = async () => {
     try {
-      const [invRes, orderRes, notifRes] = await Promise.all([
+      const [invRes, orderRes, notifRes, channelRes] = await Promise.all([
         fetch('http://localhost:8080/api/inventory'),
         fetch('http://localhost:8080/api/orders'),
         fetch('http://localhost:8080/api/notifications'),
+        fetch('http://localhost:8080/api/channel/status'),
       ]);
 
       if (invRes.ok) {
@@ -110,6 +112,10 @@ export default function App() {
         const notifData = await notifRes.json();
         setNotifications(notifData);
       }
+
+      if (channelRes.ok) {
+        setChannelStatus(await channelRes.json());
+      }
     } catch (err) {
       console.error('Failed to sync data:', err);
     }
@@ -117,6 +123,8 @@ export default function App() {
 
   useEffect(() => {
     fetchAllData();
+    const refresh = window.setInterval(fetchAllData, 5000);
+    return () => window.clearInterval(refresh);
   }, []);
 
   const addToCart = (productId) => {
@@ -433,6 +441,23 @@ export default function App() {
             </div>
           </section>
         </div>
+
+        <section className="spatial-ledger-card channel-self-check">
+          <div className="ledger-top">
+            <h3><span>◈</span> Marketplace Channel</h3>
+            <span className={`channel-online-pill ${channelStatus?.online ? 'online' : 'offline'}`}>
+              {channelStatus?.online ? 'APP ONLINE' : 'WAITING FOR API KEY'}
+            </span>
+          </div>
+          <div className="channel-metrics">
+            <div><span>Instance</span><strong>{channelStatus?.instanceId || 'Starting...'}</strong></div>
+            <div><span>Feed cursor</span><strong>{channelStatus?.cursor ?? '-'}</strong></div>
+            <div><span>Listings</span><strong>{channelStatus?.listingCount ?? 0}</strong></div>
+            <div><span>Decisions</span><strong>{channelStatus?.decisionCount ?? 0}</strong></div>
+            <div><span>Backorders</span><strong>{channelStatus?.backorderCount ?? 0}</strong></div>
+          </div>
+          {channelStatus?.lastError && <p className="channel-error">{channelStatus.lastError}</p>}
+        </section>
 
         {/* Orders Table with Cancel & Restock */}
         <section className="spatial-ledger-card" style={{ marginTop: '28px' }}>

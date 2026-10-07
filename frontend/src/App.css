@@ -898,6 +898,62 @@
   border: 1px solid rgba(244, 63, 94, 0.35);
 }
 
+.channel-online-pill {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 4px 9px;
+  border-radius: 4px;
+}
+
+.channel-online-pill.online {
+  color: #065f46;
+  background: #d1fae5;
+}
+
+.channel-online-pill.offline {
+  color: #9f1239;
+  background: #ffe4e6;
+}
+
+.channel-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+}
+
+.channel-metrics div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 12px;
+  background: var(--glass-input);
+  border: 1px solid rgba(15, 23, 42, 0.06);
+  border-radius: var(--radius-sm);
+}
+
+.channel-metrics span {
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+}
+
+.channel-metrics strong {
+  overflow: hidden;
+  color: var(--accent-cyan);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.channel-error {
+  margin: 0;
+  color: #9f1239;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+
 .item-name {
   font-family: var(--font-spatial);
   font-size: 0.92rem;

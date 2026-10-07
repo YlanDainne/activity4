@@ -18,7 +18,7 @@ import java.util.Map;
 import java.util.UUID;
 
 @Service
-class OrderService {
+class OrderService implements ShopOrderPort {
 
     private final OrderRepository orderRepository;
     private final InventoryService inventoryService;
@@ -30,8 +30,22 @@ class OrderService {
         this.eventPublisher = eventPublisher;
     }
 
+    @Override
+    public ShopOrderResult place(ShopOrderCommand command) {
+        List<OrderRequestItem> items = command.items().stream()
+                .map(item -> new OrderRequestItem(item.productId(), item.quantity()))
+                .toList();
+        OrderResponse response = createOrder(new OrderRequest(items));
+        return new ShopOrderResult(response.orderId(), response.status(), response.reason());
+    }
+
+    @Override
+    public void cancel(String orderId) {
+        cancelOrder(orderId);
+    }
+
     @Transactional
-    public OrderResponse createOrder(OrderRequest request) {
+    public synchronized OrderResponse createOrder(OrderRequest request) {
         String orderId = "ORD-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         List<ItemOutcome> outcomes = new ArrayList<>();
 
@@ -94,7 +108,7 @@ class OrderService {
     }
 
     @Transactional
-    public void cancelOrder(String orderId) {
+    public synchronized void cancelOrder(String orderId) {
         Order order = orderRepository.findById(orderId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Order not found"));
 

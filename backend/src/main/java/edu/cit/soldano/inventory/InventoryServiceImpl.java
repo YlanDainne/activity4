@@ -1,6 +1,7 @@
 package edu.cit.soldano.inventory;
 
 import edu.cit.soldano.events.LowStockEvent;
+import edu.cit.soldano.events.StockChangedEvent;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
@@ -43,6 +44,7 @@ class InventoryServiceImpl implements InventoryService {
 
         item.setStock(item.getStock() - quantity);
         inventoryRepository.save(item);
+        eventPublisher.publishEvent(new StockChangedEvent(productId, item.getStock(), "reserve"));
 
         if (item.getStock() < lowStockThreshold) {
             eventPublisher.publishEvent(new LowStockEvent(productId, item.getStock()));
@@ -57,6 +59,7 @@ class InventoryServiceImpl implements InventoryService {
 
         item.setStock(item.getStock() + quantity);
         inventoryRepository.save(item);
+        eventPublisher.publishEvent(new StockChangedEvent(productId, item.getStock(), "restock"));
     }
 
     @Override
@@ -65,4 +68,5 @@ class InventoryServiceImpl implements InventoryService {
                 .map(item -> new ProductDto(item.getProductId(), item.getProductName(), item.getStock()))
                 .toList();
     }
+
 }
