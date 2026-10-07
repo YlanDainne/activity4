@@ -2,12 +2,14 @@ package edu.cit.soldano.supplier;
 
 import edu.cit.soldano.events.SupplierOrderDeliveredEvent;
 import org.springframework.context.ApplicationEventPublisher;
+import edu.cit.soldano.channel.ClientInstanceProvider;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 
 import java.util.Map;
 import java.util.List;
 import java.util.UUID;
+import java.time.LocalDateTime;
 
 @Service
 class SupplierGatewayImpl implements SupplierGateway {
@@ -15,6 +17,7 @@ class SupplierGatewayImpl implements SupplierGateway {
     private final SupplierOrderRepository repository;
     private final LegacySupplyClient client;
     private final ApplicationEventPublisher eventPublisher;
+    private final ClientInstanceProvider instance;
 
     private record ProductPackConfig(String supplierSku, int packSize) {}
     private static final Map<String, ProductPackConfig> SKU_CATALOG = Map.of(
@@ -23,10 +26,18 @@ class SupplierGatewayImpl implements SupplierGateway {
             "P300", new ProductPackConfig("VQS-9391", 12)
     );
 
-    SupplierGatewayImpl(SupplierOrderRepository repository, LegacySupplyClient client, ApplicationEventPublisher eventPublisher) {
+    @org.springframework.beans.factory.annotation.Autowired
+    SupplierGatewayImpl(SupplierOrderRepository repository, LegacySupplyClient client,
+                        ApplicationEventPublisher eventPublisher, ClientInstanceProvider instance) {
         this.repository = repository;
         this.client = client;
         this.eventPublisher = eventPublisher;
+        this.instance = instance;
+    }
+
+    SupplierGatewayImpl(SupplierOrderRepository repository, LegacySupplyClient client,
+                        ApplicationEventPublisher eventPublisher) {
+        this(repository, client, eventPublisher, null);
     }
 
     @Override
@@ -39,12 +50,31 @@ class SupplierGatewayImpl implements SupplierGateway {
             throw new IllegalArgumentException("Reorder quantity must be greater than zero");
         }
 
-        var activeOrder = repository.findFirstByProductIdAndStatusIn(
-                productId,
-                List.of(SupplierOrderStatus.PENDING, SupplierOrderStatus.PLACED)
-        );
+        var activeOrder = findCurrentActiveOrder(productId);
         if (activeOrder.isPresent()) {
-            return toResult(activeOrder.get());
+            SupplierOrder existing = activeOrder.get();
+            if (existing.getStatus() == SupplierOrderStatus.PENDING || existing.getPoNumber() == null) {
+                return toResult(existing);
+            }
+            try {
+                var status = client.checkOrderStatus(existing.getPoNumber());
+                if (isOpenStatus(status)) {
+                    return toResult(existing);
+                }
+                if (isDelivered(status)) {
+                    existing.setStatus(SupplierOrderStatus.DELIVERED);
+                    repository.save(existing);
+                    eventPublisher.publishEvent(new SupplierOrderDeliveredEvent(
+                            existing.getProductId(), existing.getUnits(), existing.getPoNumber()));
+                } else if (isRejected(status)) {
+                    existing.setStatus(SupplierOrderStatus.REJECTED);
+                    repository.save(existing);
+                } else {
+                    return toResult(existing);
+                }
+            } catch (Exception ignored) {
+                return toResult(existing);
+            }
         }
 
         int cases = (int) Math.ceil((double) unitsNeeded / config.packSize());
@@ -72,6 +102,15 @@ class SupplierGatewayImpl implements SupplierGateway {
     private SupplierOrderResult toResult(SupplierOrder order) {
         return new SupplierOrderResult(order.getId(), order.getBuyerRef(), order.getPoNumber(),
                 order.getCases(), order.getUnits(), order.getStatus());
+    }
+
+    private java.util.Optional<SupplierOrder> findCurrentActiveOrder(String productId) {
+        List<SupplierOrderStatus> statuses = List.of(SupplierOrderStatus.PENDING, SupplierOrderStatus.PLACED);
+        if (instance == null) {
+            return repository.findFirstByProductIdAndStatusIn(productId, statuses);
+        }
+        return repository.findFirstByProductIdAndStatusInAndCreatedAtAfter(
+                productId, statuses, LocalDateTime.ofInstant(instance.startedAt(), java.time.ZoneOffset.UTC));
     }
 
     private void dispatchOrder(SupplierOrder order, ProductPackConfig config) {
@@ -115,7 +154,7 @@ class SupplierGatewayImpl implements SupplierGateway {
                 var statusRes = client.checkOrderStatus(order.getPoNumber());
                 String supplierStatus = statusRes.status() != null ? statusRes.status().toUpperCase() : "";
 
-                if ("DELIVERED".equals(supplierStatus) || "COMPLETED".equals(supplierStatus) || "40".equals(statusRes.statusCode())) {
+                if (isDelivered(statusRes)) {
                     order.setStatus(SupplierOrderStatus.DELIVERED);
                     repository.save(order);
                     eventPublisher.publishEvent(new SupplierOrderDeliveredEvent(
@@ -123,7 +162,7 @@ class SupplierGatewayImpl implements SupplierGateway {
                             order.getUnits(),
                             order.getPoNumber()
                     ));
-                } else if ("CANCELLED".equals(supplierStatus) || "REJECTED".equals(supplierStatus)) {
+                } else if (isRejected(statusRes)) {
                     order.setStatus(SupplierOrderStatus.REJECTED);
                     repository.save(order);
                 } else if (!isOpenStatus(statusRes)) {
@@ -143,5 +182,17 @@ class SupplierGatewayImpl implements SupplierGateway {
                 || "ACCEPTED".equals(status)
                 || "PICKING".equals(status)
                 || "SHIPPED".equals(status);
+    }
+
+    private boolean isDelivered(LegacyXmlPayloads.StatusResponse statusResponse) {
+        String status = statusResponse.status() == null ? "" : statusResponse.status().toUpperCase();
+        return "DELIVERED".equals(status) || "COMPLETED".equals(status)
+                || "40".equals(statusResponse.statusCode());
+    }
+
+    private boolean isRejected(LegacyXmlPayloads.StatusResponse statusResponse) {
+        String status = statusResponse.status() == null ? "" : statusResponse.status().toUpperCase();
+        return "CANCELLED".equals(status) || "REJECTED".equals(status)
+                || "90".equals(statusResponse.statusCode());
     }
 }

@@ -127,6 +127,27 @@ class MarketplaceChannelService implements MarketplaceChannel {
         }
     }
 
+    @Scheduled(fixedDelay = 15000)
+    public void reconcileBackorders() {
+        if (!started.get()) return;
+        for (MarketplaceOrder order : orderRepository.findByStatus(MarketplaceOrderStatus.BACKORDERED)) {
+            try {
+                List<ChannelOrderLine> lines = mapper.readValue(order.getLinesJson(), new TypeReference<>() {});
+                if (lines.stream().allMatch(line -> inventory.checkStock(line.sellerSku(), line.qty()))) {
+                    tryResolve(order, null);
+                } else {
+                    for (ChannelOrderLine line : lines) {
+                        if (!inventory.checkStock(line.sellerSku(), line.qty())) {
+                            supplier.placeReorder(line.sellerSku(), line.qty());
+                        }
+                    }
+                }
+            } catch (Exception exception) {
+                recordError(exception);
+            }
+        }
+    }
+
     @EventListener
     public void onStockChanged(StockChangedEvent event) {
         if (!started.get()) return;
@@ -244,7 +265,7 @@ class MarketplaceChannelService implements MarketplaceChannel {
     private void tryResolve(MarketplaceOrder order, String deliveredProductId) {
         try {
             List<ChannelOrderLine> lines = mapper.readValue(order.getLinesJson(), new TypeReference<>() {});
-            if (lines.stream().noneMatch(line -> line.sellerSku().equals(deliveredProductId))) return;
+            if (deliveredProductId != null && lines.stream().noneMatch(line -> line.sellerSku().equals(deliveredProductId))) return;
             if (!lines.stream().allMatch(line -> inventory.checkStock(line.sellerSku(), line.qty()))) return;
             ShopOrderResult result = orders.place(new ShopOrderCommand(lines.stream()
                     .map(line -> new ShopOrderLine(line.sellerSku(), line.qty())).toList()));
