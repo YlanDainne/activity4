@@ -13,6 +13,7 @@ import java.time.LocalDateTime;
 
 @Service
 class SupplierGatewayImpl implements SupplierGateway {
+    private static final int MAX_CASES_PER_ORDER = 99;
 
     private final SupplierOrderRepository repository;
     private final LegacySupplyClient client;
@@ -78,6 +79,18 @@ class SupplierGatewayImpl implements SupplierGateway {
         }
 
         int cases = (int) Math.ceil((double) unitsNeeded / config.packSize());
+        SupplierOrder firstOrder = null;
+        int remainingCases = cases;
+        while (remainingCases > 0) {
+            int orderCases = Math.min(remainingCases, MAX_CASES_PER_ORDER);
+            SupplierOrder order = createPendingOrder(productId, orderCases, config);
+            if (firstOrder == null) firstOrder = order;
+            remainingCases -= orderCases;
+        }
+        return toResult(firstOrder);
+    }
+
+    private SupplierOrder createPendingOrder(String productId, int cases, ProductPackConfig config) {
         int totalUnits = cases * config.packSize();
 
         String requestId = UUID.randomUUID().toString();
@@ -95,8 +108,7 @@ class SupplierGatewayImpl implements SupplierGateway {
             order = repository.saveAndFlush(order);
 
         dispatchOrder(order, config);
-
-        return toResult(order);
+            return order;
     }
 
     private SupplierOrderResult toResult(SupplierOrder order) {
@@ -129,18 +141,30 @@ class SupplierGatewayImpl implements SupplierGateway {
             System.out.println(">>> [GATEWAY] SUCCESS! Created PO: " + response.poNumber());
         } catch (Exception e) {
             System.err.println(">>> [GATEWAY] DISPATCH FAILED: " + e.getMessage());
-            order.setStatus(SupplierOrderStatus.PENDING);
+            SupplierOrderStatus failureStatus = e.getMessage() != null && e.getMessage().contains("E-QTY-11")
+                    ? SupplierOrderStatus.REJECTED : SupplierOrderStatus.PENDING;
+            order.setStatus(failureStatus);
             repository.save(order);
         }
     }
 
     @Scheduled(fixedDelay = 15000)
     public void retryPendingOrders() {
+        quarantineInvalidPendingOrders();
         var pendings = repository.findByStatus(SupplierOrderStatus.PENDING);
         for (SupplierOrder order : pendings) {
             ProductPackConfig config = SKU_CATALOG.get(order.getProductId());
             if (config != null) {
                 dispatchOrder(order, config);
+            }
+        }
+    }
+
+    private void quarantineInvalidPendingOrders() {
+        for (SupplierOrder order : repository.findByStatus(SupplierOrderStatus.PENDING)) {
+            if (order.getCases() > MAX_CASES_PER_ORDER) {
+                order.setStatus(SupplierOrderStatus.REJECTED);
+                repository.save(order);
             }
         }
     }
