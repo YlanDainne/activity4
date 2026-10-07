@@ -1,127 +1,83 @@
-# Ylan's Shop — Modular Monolith Order, Inventory & Notification System (Activity 4 / Lab 2)
+# Ylan's Shop — In-Process Order & Inventory Management System
 
-A modular in-process e-commerce system built with Spring Boot, Supabase PostgreSQL, and React. This lab extends the Order and Inventory modular monolith with multi-item transactional checkout, order cancellation with inventory restock, in-monolith domain events with a dedicated Notification module, and a low-stock auto-reorder alert rule.
+A modular in-process e-commerce system built with Spring Boot, Supabase PostgreSQL, and a React Spatial UI. This project demonstrates modular boundary enforcement within a monolithic backend, integrating order dispatch and inventory reservation in-process while maintaining loose coupling.
 
 ---
 
 ## 1. Supabase PostgreSQL Setup Steps
 
-1. **Supabase Database Project**:
-   - Hosted PostgreSQL database in the Asia-Pacific (`ap-northeast-2`) region using connection pooling via port `5432` (`aws-0-ap-northeast-2.pooler.supabase.com`).
-   - Configuration injected via environment variables (`SUPABASE_DB_URL`, `SUPABASE_DB_USERNAME`, `SUPABASE_DB_PASSWORD`) with application fallbacks.
+1. **Create Supabase Project**
+   - Created a PostgreSQL project in Supabase located in the Asia-Pacific region (`ap-northeast-2`).
+   - Retrieved the direct and session connection pooling credentials (`aws-0-ap-northeast-2.pooler.supabase.com:5432/postgres?sslmode=require`).
 
-2. **Complete Schema & Seed Script (`schema.sql`)**:
-   - Run the following SQL in the Supabase SQL Editor to initialize all tables and seed data from scratch:
+2. **Schema & Table Initialization**
+   - Executed the following SQL DDL and seed scripts via the Supabase SQL Editor:
 
-```sql
--- Inventory Table
-CREATE TABLE IF NOT EXISTS inventory (
+   ```sql
+   -- Inventory Table
+   CREATE TABLE IF NOT EXISTS inventory (
     product_id VARCHAR(50) PRIMARY KEY,
-    product_name VARCHAR(100) NOT NULL,
-    stock INT NOT NULL CHECK (stock >= 0)
-);
+    product_name VARCHAR(255) NOT NULL,
+       stock INT NOT NULL CHECK (stock >= 0)
+   );
 
--- Orders Table (Supports CONFIRMED, REJECTED, CANCELLED)
-CREATE TABLE IF NOT EXISTS orders (
-    order_id VARCHAR(50) PRIMARY KEY,
-    status VARCHAR(20) NOT NULL,
-    reason TEXT,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
-);
+   -- Orders Table
+   CREATE TABLE IF NOT EXISTS orders (
+       id BIGSERIAL PRIMARY KEY,
+       product_id VARCHAR(50) NOT NULL,
+       quantity INT NOT NULL,
+       status VARCHAR(20) NOT NULL,
+       reason TEXT,
+       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+   );
 
--- Order Items Table (Multi-Item Order Relationships)
-CREATE TABLE IF NOT EXISTS order_items (
-    id SERIAL PRIMARY KEY,
-    order_id VARCHAR(50) REFERENCES orders(order_id) ON DELETE CASCADE,
-    product_id VARCHAR(50) NOT NULL,
-    quantity INT NOT NULL CHECK (quantity > 0)
-);
-
--- Notifications Table (Domain Event Feed Log)
-CREATE TABLE IF NOT EXISTS notifications (
-    notification_id SERIAL PRIMARY KEY,
-    message TEXT NOT NULL,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
--- Seed Inventory Catalog
-INSERT INTO inventory (product_id, product_name, stock) VALUES
-    ('P100', 'Mechanical Keyboard', 25),
-    ('P200', 'Wireless Mouse', 10),
-    ('P300', 'USB-C Monitor Hub', 5)
-ON CONFLICT (product_id) DO UPDATE 
-SET product_name = EXCLUDED.product_name, stock = EXCLUDED.stock;
-```
+   -- Seed Products
+   INSERT INTO inventory (product_id, name, stock) VALUES
+   ('P100', 'Mechanical Keyboard', 25),
+   ('P200', 'Wireless Mouse', 10),
+       ('P300', 'USB-C Hub', 0)
+   ON CONFLICT (product_id) DO NOTHING;
+   ```
 
 ---
 
 ## 2. Network Tab Verification Evidence
 
-Below are the verified test transactions captured from the browser DevTools Network tab:
+Below are the verified test transactions captured from the browser DevTools Network tab, showcasing both successful order dispatch and out-of-stock rejection flows against the Spring Boot API (`POST /api/orders`).
 
-### 1. Multi-Item Order Confirmed (All Items Succeed)
-- **Request**: `POST /api/orders` with items `[P100 (x1), P200 (x1), P300 (x1)]`
-- **Result**: HTTP 200 OK — `status: "CONFIRMED"`. All line items reserved atomically, reducing P300 stock to 2, and triggering a low-stock event.
-- **Evidence**:
-  ![Multi-Item Confirmed Network Evidence](docs/screenshots/multi_item_confirmed_network.png)
+### Confirmed Order (In-Stock Product)
+- **Product**: Wireless Mouse (`P100`) — Unit Price: ₱1,890
+- **Quantity**: 1
+- **API Status**: HTTP 200 OK
+- **Outcome**: Order confirmed and saved to `orders` table; inventory decremented in Supabase from 22 to 21 units.
 
----
-
-### 2. Multi-Item Order Rejected (All-or-Nothing Rollback)
-- **Request**: `POST /api/orders` with items `[P300 (x4), P200 (x1)]` where P300 exceeds available stock (stock was 2).
-- **Result**: HTTP 200 OK — `status: "REJECTED"`, reason `"Insufficient stock for product P300"`. Phase 1 validation halted checkout before reserving any item, preventing partial reservation of P200.
-- **Evidence**:
-  ![Multi-Item Rejected Network Evidence](docs/screenshots/multi_item_rejected_network.png)
+![Confirmed Order Network Evidence](docs/screenshots/order_confirmed_network.png)
 
 ---
 
-### 3. Order Cancellation & Restock
-- **Request**: `POST /api/orders/{orderId}/cancel` on confirmed order `ORD-A2096FB3`.
-- **Result**: HTTP 200 OK. Status updated to `CANCELLED`, line items returned to inventory via `inventoryService.restock()`, and verified by the automatic subsequent `GET /api/inventory` request.
-- **Evidence**:
-  ![Order Cancel & Restock Network Evidence](docs/screenshots/order_cancel_restock_network.png)
+### Rejected Order (Depleted Product)
+- **Product**: USB-C Hub (`P300`) — Unit Price: ₱1,290
+- **Quantity**: 1
+- **API Status**: HTTP 200 OK (Application payload indicates rejection)
+- **Outcome**: Order blocked; `orders` table records `REJECTED` status with message `"Insufficient stock. Available: 0"`.
+
+![Rejected Order Network Evidence](docs/screenshots/order_rejected_network.png)
 
 ---
 
-### 4. Domain Notification Feed
-- **Request**: `GET /api/notifications`
-- **Result**: HTTP 200 OK. Returns the complete activity log showing all three event triggers:
-  1. Confirmed Order event (`Order ORD-A2096FB3 confirmed`)
-  2. Low Stock Alert event (`Low stock alert: Product P300 has 2 remaining (reorder needed)`)
-  3. Rejected Order event (`Order ORD-2B7CB343 rejected: Insufficient stock for product P300`)
-- **Evidence**:
-  ![Notification Feed Network Evidence](docs/screenshots/notification_feed_network.png)
+## 3. Engineering Reflection
 
----
+### In-Process Integration vs. Network Microservices
+Running Order and Inventory together in the same process gives us major advantages out of the box. First, method calls happen directly in memory inside the JVM, which means virtually zero latency and no serialization overhead. More importantly, we get straightforward database transactions for free. In our current code, when `OrderService` calls `inventoryService.reserve()`, both the inventory deduction and the order persistence occur within the same local transaction. If anything throws an error or fails, the database rollback handles both states consistently.
 
-## 3. Event Listener Concurrency: Synchronous vs. `@Async`
+If we separated these two into independent microservices communicating over HTTP or gRPC, that simplicity disappears. We would lose unified database transactions and have to implement distributed transaction patterns, like the Saga pattern with compensating transactions. We would also need to build in resilience tools that aren't necessary in-process: HTTP client pools, retry mechanisms with exponential backoff, circuit breakers to prevent cascading outages, distributed tracing to track requests across services, and idempotency keys to ensure duplicate network packets don't accidentally deduct inventory twice.
 
-In this system, `@EventListener` methods in `NotificationEventListener` run **synchronously** within the caller's thread by default. This design was chosen for several reasons:
+### Module Boundaries and Package-Private Visibility
+In our project, `InventoryServiceImpl` and `InventoryRepository` intentionally do not have the `public` modifier—they are package-private inside `edu.cit.soldano.inventory`. This boundary is critical because it forces the `edu.cit.soldano.shop` package to depend exclusively on the public `InventoryService` interface.
 
-1. **Simplicity and Predictability**: Synchronous execution avoids the need for thread pool management (`@EnableAsync`), preventing thread exhaustion under traffic bursts.
-2. **Deterministic UI State**: The frontend issues parallel `GET` requests (`/api/inventory`, `/api/orders`, `/api/notifications`) immediately after the `POST /api/orders` returns. Synchronous processing guarantees that notification records are committed to Supabase before the client requests the updated activity feed.
-3. **Trade-offs**: In high-throughput production systems, synchronous listeners add write latency to the client request. If notification persistence were slow (e.g. sending emails or external webhooks), switching to `@Async` would be necessary to keep order placement non-blocking, handled with a dedicated task executor and retry mechanism.
+If `InventoryServiceImpl` were made public, nothing would stop another developer from directly autowiring the concrete implementation or even the repository directly into `OrderService`. Over time, that leads to tight coupling: order handling logic starts relying on internal implementation details, custom query methods, or specific data entities of the inventory module. By keeping the concrete class package-private, Java's compiler itself polices the architecture. The inventory team can completely rewrite internal database queries or change JPA mappings, and as long as the public interface contract remains untouched, the order module will never break.
 
----
+### Extracting Inventory into its Own Microservice
+I would extract Inventory into a standalone service if the operational requirements of the two domains diverged significantly. For instance, in a large-scale e-commerce platform, product catalog and inventory availability checks often receive hundreds of times more read traffic than actual checkout requests. Splitting Inventory would allow us to scale its instances and read replicas independently without having to scale checkout services alongside it. It also makes sense if dedicated, separate teams own warehouse operations versus customer billing.
 
-## 4. Engineering Reflection
-
-### In-Process Atomicity vs. Distributed Transactions
-In our monolith, atomicity across multiple `InventoryService` calls is governed by Spring's in-memory `@Transactional` boundary and the underlying database connection. During checkout, Phase 1 validates all line items against current stock before any reservation occurs. When Phase 2 executes `inventoryService.reserve()` across items, all queries share the same transactional context. If any step fails or throws an exception, the entire transaction rolls back, ensuring zero partial reservations without data corruption. 
-
-If Order and Inventory were split across separate network microservices, this single database transaction would no longer exist. Each service would manage its own isolated database, making ACID guarantees impossible across HTTP boundaries. To handle this, we would need to implement the **Saga Pattern** using either choreography or orchestration. In a multi-item saga, the Order service would send a reservation command for each item; if item three failed due to insufficient stock, the orchestrator would emit compensating transactions (e.g., `POST /api/inventory/cancel-reservation`) to undo previous reservations. We would also need idempotency keys, outbox tables, and dead-letter queues to handle network timeouts and partial failure states.
-
-### Decoupling via Domain Events
-Publishing domain events (`OrderPlacedEvent`, `OrderRejectedEvent`, `LowStockEvent`) through Spring's `ApplicationEventPublisher` fundamentally transforms the architectural coupling between `OrderService` and `Notification`. Previously, a direct service dependency would force `OrderService` to know about notification interfaces, method signatures, and database models, creating tight bidirectional coupling. With publish/subscribe, `OrderService` merely broadcasts that an event occurred in the domain and has zero awareness of who consumes it. The `Notification` module depends strictly on event DTOs, keeping its internal persistence completely encapsulated.
-
-If Notification were extracted into an independent microservice, Spring's in-process event bus would be replaced by an external message broker such as **Apache Kafka** or **RabbitMQ**. OrderService would publish events to topics, and the Notification service would consume them asynchronously. To ensure reliable integration without dual-write inconsistencies (where a database commit succeeds but message publishing fails), we would implement the **Transactional Outbox Pattern** alongside message deduplication and at-least-once delivery guarantees.
-
-### Extracting a Module: Service Extraction Choice
-If forced to extract exactly one module into an independent microservice, I would extract the **Notification Module** first. 
-
-Architecturally, Notification has the lowest business coupling and is non-critical to the core checkout loop: a delay or failure in logging a notification does not prevent an order from being confirmed or inventory from being reserved. In contrast, splitting Inventory requires distributed transactions, distributed locking, and compensating sagas. 
-
-To extract Notification:
-1. Move `edu.cit.soldano.notification` into a standalone Spring Boot project with its own database.
-2. Replace Spring's in-process `ApplicationEventPublisher` with a message broker (e.g., RabbitMQ or Kafka) or an HTTP webhook consumer.
-3. Remove Notification endpoints from the monolith's gateway. The core `shop` and `inventory` business logic would require zero changes, as they already only interact via published domain events.
+To perform this extraction in our codebase, `OrderService` would need very few changes because it was already built against the `InventoryService` interface rather than a concrete class. We would simply write a new implementation of `InventoryService` in the shop module (like an HTTP client using Spring Cloud OpenFeign or WebClient) that hits the new Inventory service's REST endpoint. Inside `OrderService`, the local transactional boundary would be replaced by checking the remote response or listening to reservation events, while the original database tables and repository logic would move to the new standalone service repository.

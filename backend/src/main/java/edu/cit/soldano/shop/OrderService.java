@@ -4,7 +4,6 @@ import edu.cit.soldano.events.OrderItemRecord;
 import edu.cit.soldano.events.OrderPlacedEvent;
 import edu.cit.soldano.events.OrderRejectedEvent;
 import edu.cit.soldano.inventory.InventoryService;
-import edu.cit.soldano.inventory.ProductDto;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -12,9 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -49,28 +46,15 @@ class OrderService implements ShopOrderPort {
         String orderId = "ORD-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase();
         List<ItemOutcome> outcomes = new ArrayList<>();
 
-        if (request == null || request.items() == null || request.items().isEmpty()) {
-            return new OrderResponse(orderId, "REJECTED", "Order must contain at least one item", List.of(), inventoryService.getAllProducts());
-        }
-
-        // Aggregate total requested quantities per productId to ensure true all-or-nothing check
-        Map<String, Integer> requestedTotals = new HashMap<>();
-        for (OrderRequestItem item : request.items()) {
-            requestedTotals.merge(item.productId(), item.quantity(), Integer::sum);
-        }
-
         boolean hasStockShortage = false;
         String failedProductId = null;
 
         // Phase 1: All-or-nothing stock validation
         for (OrderRequestItem item : request.items()) {
-            int totalNeeded = requestedTotals.get(item.productId());
-            boolean available = inventoryService.checkStock(item.productId(), totalNeeded);
+            boolean available = inventoryService.checkStock(item.productId(), item.quantity());
             if (!available) {
                 hasStockShortage = true;
-                if (failedProductId == null) {
-                    failedProductId = item.productId();
-                }
+                failedProductId = item.productId();
                 outcomes.add(new ItemOutcome(item.productId(), "INSUFFICIENT_STOCK"));
             } else {
                 outcomes.add(new ItemOutcome(item.productId(), "AVAILABLE"));
@@ -83,7 +67,7 @@ class OrderService implements ShopOrderPort {
             orderRepository.save(rejectedOrder);
 
             eventPublisher.publishEvent(new OrderRejectedEvent(orderId, failureReason));
-            return new OrderResponse(orderId, "REJECTED", failureReason, outcomes, inventoryService.getAllProducts());
+            return new OrderResponse(orderId, "REJECTED", failureReason, outcomes);
         }
 
         // Phase 2: Reserve stock and save confirmed order
@@ -104,7 +88,7 @@ class OrderService implements ShopOrderPort {
 
         eventPublisher.publishEvent(new OrderPlacedEvent(orderId, eventItems));
 
-        return new OrderResponse(orderId, "CONFIRMED", null, successOutcomes, inventoryService.getAllProducts());
+        return new OrderResponse(orderId, "CONFIRMED", null, successOutcomes);
     }
 
     @Transactional
@@ -116,10 +100,8 @@ class OrderService implements ShopOrderPort {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Order is already CANCELLED");
         }
 
-        if (order.getItems() != null) {
-            for (OrderItem item : order.getItems()) {
-                inventoryService.restock(item.getProductId(), item.getQuantity());
-            }
+        for (OrderItem item : order.getItems()) {
+            inventoryService.restock(item.getProductId(), item.getQuantity());
         }
 
         order.setStatus("CANCELLED");
@@ -132,7 +114,7 @@ class OrderService implements ShopOrderPort {
                         o.getOrderId(),
                         o.getStatus(),
                         o.getReason(),
-                        o.getItems() == null ? List.of() : o.getItems().stream().map(i -> new OrderRequestItem(i.getProductId(), i.getQuantity())).toList()
+                        o.getItems().stream().map(i -> new OrderRequestItem(i.getProductId(), i.getQuantity())).toList()
                 ))
                 .toList();
     }

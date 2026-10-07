@@ -809,6 +809,35 @@
   color: var(--text-muted);
 }
 
+.supplier-self-check .ledger-top h3 {
+  color: var(--accent-cyan);
+}
+
+.self-check-summary {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 0;
+  color: var(--text-secondary);
+  font-size: 0.78rem;
+}
+
+.self-check-summary strong {
+  color: #34d399;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+}
+
+.supplier-request-id {
+  max-width: 260px;
+  overflow: hidden;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .perk-glyph {
   font-size: 1.05rem;
 }
