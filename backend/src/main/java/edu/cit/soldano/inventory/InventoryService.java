@@ -1,8 +1,10 @@
 package edu.cit.soldano.inventory;
 
-import java.util.Optional;
+import java.util.List;
 
 public interface InventoryService {
-    Optional<InventoryItem> getItem(String productId);
-    boolean reserve(String productId, int quantity);
+    boolean checkStock(String productId, int quantity);
+    void reserve(String productId, int quantity);
+    void restock(String productId, int quantity);
+    List<ProductDto> getAllProducts();
 }

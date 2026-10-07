@@ -16,8 +16,8 @@ A modular in-process e-commerce system built with Spring Boot, Supabase PostgreS
    ```sql
    -- Inventory Table
    CREATE TABLE IF NOT EXISTS inventory (
-       product_id VARCHAR(50) PRIMARY KEY,
-       name VARCHAR(255) NOT NULL,
+    product_id VARCHAR(50) PRIMARY KEY,
+    product_name VARCHAR(255) NOT NULL,
        stock INT NOT NULL CHECK (stock >= 0)
    );
 
@@ -33,8 +33,8 @@ A modular in-process e-commerce system built with Spring Boot, Supabase PostgreS
 
    -- Seed Products
    INSERT INTO inventory (product_id, name, stock) VALUES
-       ('P100', 'Wireless Mouse', 25),
-       ('P200', 'Mechanical Keyboard', 10),
+   ('P100', 'Mechanical Keyboard', 25),
+   ('P200', 'Wireless Mouse', 10),
        ('P300', 'USB-C Hub', 0)
    ON CONFLICT (product_id) DO NOTHING;
    ```

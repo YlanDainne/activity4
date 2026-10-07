@@ -1,8 +1,5 @@
 package edu.cit.soldano.shop;
 
-public record OrderResponse(
-    String status,
-    String reason,
-    Integer inventory
-) {
-}
+import java.util.List;
+
+public record OrderResponse(String orderId, String status, String reason, List<ItemOutcome> items) {}
