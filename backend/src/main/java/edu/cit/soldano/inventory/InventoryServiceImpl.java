@@ -1,7 +1,6 @@
 package edu.cit.soldano.inventory;
 
 import edu.cit.soldano.events.LowStockEvent;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -11,17 +10,13 @@ import java.util.List;
 @Service
 class InventoryServiceImpl implements InventoryService {
 
-    private final int lowStockThreshold;
+    private static final int LOW_STOCK_THRESHOLD = 5;
     private final InventoryRepository inventoryRepository;
     private final ApplicationEventPublisher eventPublisher;
 
-    InventoryServiceImpl(
-            InventoryRepository inventoryRepository,
-            ApplicationEventPublisher eventPublisher,
-            @Value("${inventory.low-stock-threshold:5}") int lowStockThreshold) {
+    InventoryServiceImpl(InventoryRepository inventoryRepository, ApplicationEventPublisher eventPublisher) {
         this.inventoryRepository = inventoryRepository;
         this.eventPublisher = eventPublisher;
-        this.lowStockThreshold = lowStockThreshold;
     }
 
     @Override
@@ -44,7 +39,7 @@ class InventoryServiceImpl implements InventoryService {
         item.setStock(item.getStock() - quantity);
         inventoryRepository.save(item);
 
-        if (item.getStock() < lowStockThreshold) {
+        if (item.getStock() < LOW_STOCK_THRESHOLD) {
             eventPublisher.publishEvent(new LowStockEvent(productId, item.getStock()));
         }
     }
@@ -64,5 +59,10 @@ class InventoryServiceImpl implements InventoryService {
         return inventoryRepository.findAll().stream()
                 .map(item -> new ProductDto(item.getProductId(), item.getProductName(), item.getStock()))
                 .toList();
+    }
+
+    @org.springframework.context.event.EventListener
+    public void onSupplierOrderDelivered(edu.cit.soldano.events.SupplierOrderDeliveredEvent event) {
+        this.restock(event.productId(), event.units());
     }
 }

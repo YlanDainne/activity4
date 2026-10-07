@@ -77,6 +77,7 @@ export default function App() {
   const [stockMap, setStockMap] = useState({});
   const [cart, setCart] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [supplierOrders, setSupplierOrders] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [loading, setLoading] = useState(false);
   const [lastResult, setLastResult] = useState(null);
@@ -86,10 +87,11 @@ export default function App() {
   // Fetch live state from Supabase/Spring Boot
   const fetchAllData = async () => {
     try {
-      const [invRes, orderRes, notifRes] = await Promise.all([
+      const [invRes, orderRes, notifRes, supplierRes] = await Promise.all([
         fetch('http://localhost:8080/api/inventory'),
         fetch('http://localhost:8080/api/orders'),
         fetch('http://localhost:8080/api/notifications'),
+        fetch('http://localhost:8080/api/supplier-orders'),
       ]);
 
       if (invRes.ok) {
@@ -109,6 +111,11 @@ export default function App() {
       if (notifRes.ok) {
         const notifData = await notifRes.json();
         setNotifications(notifData);
+      }
+
+      if (supplierRes.ok) {
+        const supplierData = await supplierRes.json();
+        setSupplierOrders(supplierData.sort((a, b) => b.id - a.id));
       }
     } catch (err) {
       console.error('Failed to sync data:', err);
@@ -433,6 +440,41 @@ export default function App() {
             </div>
           </section>
         </div>
+
+        <section className="spatial-ledger-card supplier-self-check" style={{ marginTop: '28px' }}>
+          <div className="ledger-top">
+            <h3><span>◈</span> LegacySupply Self-Check</h3>
+            <span className="spatial-badge-counter">{supplierOrders.length} PURCHASE ORDERS</span>
+          </div>
+          <div className="self-check-summary">
+            <span>Request identities are persisted before dispatch.</span>
+            <strong>
+              {new Set(supplierOrders.map((order) => order.requestId)).size === supplierOrders.length
+                ? 'NO DUPLICATE REQUEST IDS'
+                : 'DUPLICATE REQUEST IDS DETECTED'}
+            </strong>
+          </div>
+          {supplierOrders.length === 0 ? (
+            <div className="empty-ledger-state">No supplier orders recorded yet.</div>
+          ) : (
+            <div className="ledger-rows-wrapper">
+              {supplierOrders.map((order) => (
+                <div key={order.id} className="spatial-ledger-item">
+                  <div className="item-left">
+                    <span className={`item-status-pill supplier-${order.status.toLowerCase()}`}>
+                      {order.status}
+                    </span>
+                    <span className="item-name"><strong>{order.poNumber || `ORDER-${order.id}`}</strong></span>
+                    <span className="item-qty">
+                      {order.productId} | {order.cases} CS / {order.units} units | {order.buyerRef}
+                    </span>
+                  </div>
+                  <div className="item-right supplier-request-id">{order.requestId}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
 
         {/* Orders Table with Cancel & Restock */}
         <section className="spatial-ledger-card" style={{ marginTop: '28px' }}>
